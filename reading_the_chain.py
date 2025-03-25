@@ -12,27 +12,27 @@ from web3.providers.rpc import HTTPProvider
 
 def connect_to_eth():
 	url = "https://mainnet.infura.io/v3/8054c6b6305148d7be6d257adef7a4e6"  # FILL THIS IN
-  w3 = Web3(HTTPProvider(url))
-  assert w3.is_connected(), f"Failed to connect to provider at {url}"
-  return w3
+	w3 = Web3(HTTPProvider(url))
+	assert w3.is_connected(), f"Failed to connect to provider at {url}"
+	return w3
 
 def connect_with_middleware(contract_json):
 	with open(contract_json, "r") as f:
 		d = json.load(f)
-    d = d['bsc']
-    address = d['address']
-    abi = d['abi']
+		d = d['bsc']
+    		address = d['address']
+    		abi = d['abi']
 
     # Connect to Binance Smart Chain (BSC) testnet
-  url = "https://data-seed-prebsc-1-s1.binance.org:8545"  # HTTP URL
-  w3 = Web3(HTTPProvider(url))
-  assert w3.is_connected(), f"Failed to connect to provider at {url}"
+	url = "https://data-seed-prebsc-1-s1.binance.org:8545"  # HTTP URL
+  	w3 = Web3(HTTPProvider(url))
+  	assert w3.is_connected(), f"Failed to connect to provider at {url}"
 
     # Inject POA middleware for BSC chains
-  w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+  	w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
     # Create contract object
-  contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=abi)
+  	contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=abi)
 
 	return w3, contract
 
@@ -51,12 +51,24 @@ def is_ordered_block(w3, block_num):
 	Conveniently, most type 2 transactions set the gasPrice field to be min( tx.maxPriorityFeePerGas + block.baseFeePerGas, tx.maxFeePerGas )
 	"""
 	block = w3.eth.get_block(block_num, full_transactions=True)
-	ordered = False
-
-	# TODO YOUR CODE HERE
+	base_fee = block.get('baseFeePerGas', 0)
+	txs = block.transactions
 	
+	priority_fees = []
+	
+	for tx in txs:
+		if tx['type'] == '0x2':
+			max_priority = tx.get('maxPriorityFeePerGas', 0)
+	            	max_fee = tx.get('maxFeePerGas', 0)
+	            	priority = min(max_priority, max_fee - base_fee)
+	        else:
+	           	gas_price = tx.get('gasPrice', 0)
+	            	priority = gas_price - base_fee
+	
+	        priority_fees.append(priority)
+	
+	return priority_fees == sorted(priority_fees, reverse=True)
 
-	return ordered
 
 
 def get_contract_values(contract, admin_address, owner_address):
@@ -76,10 +88,9 @@ def get_contract_values(contract, admin_address, owner_address):
 	default_admin_role = int.to_bytes(0, 32, byteorder="big")
 
 	# TODO complete the following lines by performing contract calls
-	onchain_root = 0  # Get and return the merkleRoot from the provided contract
-	has_role = 0  # Check the contract to see if the address "admin_address" has the role "default_admin_role"
-	prime = 0  # Call the contract to get the prime owned by "owner_address"
-
+	onchain_root = contract.functions.merkleRoot().call()  # Get and return the merkleRoot from the provided contract
+	has_role = contract.functions.hasRole(default_admin_role, Web3.to_checksum_address(admin_address)).call()  # Check the contract to see if the address "admin_address" has the role "default_admin_role"
+	prime = contract.functions.getPrimeByOwner(Web3.to_checksum_address(owner_address)).call()
 	return onchain_root, has_role, prime
 
 
